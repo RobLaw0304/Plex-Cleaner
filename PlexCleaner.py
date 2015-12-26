@@ -91,7 +91,7 @@ default_location = ''  # /path/to/file
 # This will check if all users in the list have watched a show. Separate each user with a comma
 # You may use 'all' for the home Users and the script will check watch status of all the users in the Plex Home (Including Guest account if enabled)
 # It is probably better to list the users explicitly
-default_homeUsers = ''         # 'Bob,Joe,Will'
+default_homeUsers = ''  # 'Bob,Joe,Will'
 ##########################################################################
 
 ## CUSTOMIZED SHOW SETTINGS ##############################################
@@ -102,7 +102,7 @@ default_homeUsers = ''         # 'Bob,Joe,Will'
 # Make sure each show is separated by a comma. Use this for TV shows
 ShowPreferences = {
     "Show 1": {"episodes": 3, "watched": True, "minDays": 10, "action": "delete", "location": "/path/to/folder",
-               "onDeck": True, "maxDays": 30, "homeUsers":'Bob,Joe,Will'},
+               "onDeck": True, "maxDays": 30, "homeUsers": 'Bob,Joe,Will'},
     "Show 2": {"episodes": 0, "watched": False, "minDays": 10, "action": "delete", "location": "/path/to/folder",
                "onDeck": False, "maxDays": 30},
     "Show 3": {"action": "keep"},  # This show will skipped
@@ -151,13 +151,14 @@ CONFIG_VERSION = 1.9
 client_id = uuid.uuid1()
 home_user_tokens = {}
 machine_client_identifier = ''
+debug_mode = False
 try:
     import urllib.request as urllib2
 except:
     import urllib2
 
 
-def log(msg, debug = False):
+def log(msg, debug=False):
     try:
         if LogToFile:
             if debug:
@@ -206,19 +207,22 @@ def getToken(user, passw):
             str_response = response.readall().decode('utf-8')
         loaded = json.loads(str_response)
         return loaded['user']['authentication_token']
-    except:
+    except Exception as e:
+        if debug_mode:
+            log("Error getting token: %s" % e, True)
         return ""
 
 
 # For Shared users, get the Access Token for the server, get the https url as well
 def getAccessToken(Token):
-    resources = getURLX("https://plex.tv/api/resources?includeHttps=1",token=Token)
+    resources = getURLX("https://plex.tv/api/resources?includeHttps=1", token=Token)
     if not resources:
         return ""
     devices = resources.getElementsByTagName("Device")
     for device in devices:
-        if len(devices) == 1 or machine_client_identifier==device.getAttribute("clientIdentifier") or \
-                (Settings['DeviceName'] and (Settings['DeviceName'].lower() in device.getAttribute('name').lower() or Settings['DeviceName'].lower() in device.getAttribute('clientIdentifier').lower())):
+        if len(devices) == 1 or machine_client_identifier == device.getAttribute("clientIdentifier") or \
+                (Settings['DeviceName'] and (Settings['DeviceName'].lower() in device.getAttribute('name').lower() or Settings[
+                    'DeviceName'].lower() in device.getAttribute('clientIdentifier').lower())):
             access_token = device.getAttribute('accessToken')
             if not access_token:
                 return ""
@@ -240,15 +244,15 @@ def getAccessToken(Token):
                 return access_token
     return ""
 
+
 def getPlexHomeUserTokens():
     homeUsers = getURLX("https://plex.tv/api/home/users")
+    user_tokens = {}
     if homeUsers:
-        #print(homeUsers.toprettyxml())
-        user_tokens = {}
+        # print(homeUsers.toprettyxml())
         for user in homeUsers.getElementsByTagName("User"):
             id = user.getAttribute("id")
-            switch_page = getURLX("https://plex.tv/api/home/users/" + id + "/switch",
-                                  data=b'')  # Empty byte date to send a 'POST'
+            switch_page = getURLX("https://plex.tv/api/home/users/" + id + "/switch", data=b'')  # Empty byte date to send a 'POST'
             if switch_page:
                 user_element = switch_page.getElementsByTagName('user')[0]
                 username = user_element.getAttribute("title").lower()
@@ -259,6 +263,7 @@ def getPlexHomeUserTokens():
     else:
         print("Cannot load page!")
         return user_tokens
+
 
 # Load Settings from json into an OrderedDict, with defaults
 def LoadSettings(opts):
@@ -310,7 +315,7 @@ def dumpSettings(output):
         json.dump(Settings, outfile, indent=2)
 
 
-def getURLX(URL, data = None, parseXML = True, max_tries = 3, timeout = 1, referer = None, token=None):
+def getURLX(URL, data=None, parseXML=True, max_tries=3, timeout=1, referer=None, token=None):
     if not token:
         token = Settings['Token']
     if not URL.startswith('http'):
@@ -348,20 +353,20 @@ def getURLX(URL, data = None, parseXML = True, max_tries = 3, timeout = 1, refer
 
 
 # Returns if a file action was performed (move, copy, delete)
-def performAction(file, action, media_id = 0, location = ""):
+def performAction(file, action, media_id=0, location=""):
     global DeleteCount, MoveCount, CopyCount, FlaggedCount
 
     file = getLocalPath(file)
-    if action.startswith('k'):                  #Keep file
+    if action.startswith('k'):  # Keep file
         return False
-    if test or action.startswith('f')    :       #Test file or Flag file
+    if test or action.startswith('f'):  # Test file or Flag file
         if not os.path.isfile(file):
             log("[NOT FOUND] " + file)
             return False
         log("**[FLAGGED] " + file)
         FlaggedCount += 1
         return False
-    elif action.startswith('d') and Settings['plex_delete']:                #Delete using Plex Web API
+    elif action.startswith('d') and Settings['plex_delete']:  # Delete using Plex Web API
         try:
             URL = (Settings['Host'] + ":" + Settings['Port'] + "/library/metadata/" + str(media_id))
             req = urllib2.Request(URL, None, {"X-Plex-Token": Settings['Token']})
@@ -399,7 +404,7 @@ def performAction(file, action, media_id = 0, location = ""):
                 shutil.move(os.path.realpath(f), location)
                 log("**[MOVED] " + f)
             except Exception as e:
-                log("error moving file: %s" % e)
+                log("Error moving file: %s" % e, True)
                 return False
             if os.path.islink(f):
                 os.unlink(f)
@@ -411,7 +416,7 @@ def performAction(file, action, media_id = 0, location = ""):
                 os.remove(deleteFile)
                 log("**[DELETED] " + deleteFile)
             except Exception as e:
-                log("error deleting file: %s" % e, True)
+                log("Error deleting file: %s" % e, True)
                 continue
         DeleteCount += 1
         return True
@@ -421,7 +426,7 @@ def performAction(file, action, media_id = 0, location = ""):
         return False
 
 
-def get_input(prompt = ""):
+def get_input(prompt=""):
     if sys.version < 3:
         return raw_input(prompt)
     else:
@@ -498,6 +503,7 @@ def getMediaInfo(VideoNode):
             return {'view': view, 'DaysSinceVideoAdded': DaysSinceVideoAdded,
                     'DaysSinceVideoLastViewed': DaysSinceVideoLastViewed, 'file': file, 'media_id': media_id}
 
+
 def checkUsersWatched(users, media_id):
     global home_user_tokens
     if not home_user_tokens:
@@ -510,18 +516,17 @@ def checkUsersWatched(users, media_id):
             user_media_page = getURLX(Settings['Host'] + ":" + Settings['Port'] + '/library/metadata/' + media_id, token=home_user_tokens[u])
             if user_media_page:
                 video = user_media_page.getElementsByTagName("Video")[0]
-                if video.hasAttribute('viewCount') and int(video.getAttribute('viewCount'))>0:
+                if video.hasAttribute('viewCount') and int(video.getAttribute('viewCount')) > 0:
                     lastViewedAt = video.getAttribute('lastViewedAt')
-                    if not lastViewedAt:
-                        if lastViewedAt == '':
-                            DaysSinceVideoLastViewed = 0
-                        else:
-                            d1 = datetime.datetime.today()
-                            d2 = datetime.datetime.fromtimestamp(float(lastViewedAt))
-                            DaysSinceVideoLastViewed = (d1 - d2).days
-                        if compareDay == -1 or DaysSinceVideoLastViewed < compareDay:               #Find the user who has seen the episode last
-                            compareDay = DaysSinceVideoLastViewed
-                else:   #Video has not been seen by this user, return -1 for unseen
+                    if not lastViewedAt or lastViewedAt == '' or lastViewedAt == '0':
+                        DaysSinceVideoLastViewed = 0
+                    else:
+                        d1 = datetime.datetime.today()
+                        d2 = datetime.datetime.fromtimestamp(float(lastViewedAt))
+                        DaysSinceVideoLastViewed = (d1 - d2).days
+                    if compareDay == -1 or DaysSinceVideoLastViewed < compareDay:  # Find the user who has seen the episode last
+                        compareDay = DaysSinceVideoLastViewed
+                else:  # Video has not been seen by this user, return -1 for unseen
                     if test:
                         log(u + " has not seen the video: " + media_id)
                     return -1
@@ -533,6 +538,7 @@ def checkUsersWatched(users, media_id):
             return -1
     return compareDay
 
+
 # Movies are all listed on one page
 def checkMovies(doc, section):
     global FileCount
@@ -543,7 +549,7 @@ def checkMovies(doc, section):
     movie_settings.update(Settings['MoviePreferences'])
     check_users = []
     if movie_settings['homeUsers']:
-        check_users = movie_settings_settings['homeUsers'].strip(" ,").lower().split(",")
+        check_users = movie_settings['homeUsers'].strip(" ,").lower().split(",")
         for i in range(0, len(check_users)):  # Remove extra spaces and commas
             check_users[i] = check_users[i].strip(", ")
     for VideoNode in doc.getElementsByTagName("Video"):
@@ -553,12 +559,13 @@ def checkMovies(doc, section):
         onDeck = CheckOnDeck(movie_id)
         if movie_settings['watched']:
             if check_users:
-                show_settings['onDeck'] = False
+                movie_settings['onDeck'] = False
                 watchedDays = checkUsersWatched(check_users, m['media_id'])
                 if watchedDays == -1:
                     m['view'] = 0
                     compareDay = 0
                 else:
+                    m['view'] = 1
                     if watchedDays > m['DaysSinceVideoAdded']:
                         compareDay = m['DaysSinceVideoAdded']
                     else:
@@ -662,7 +669,7 @@ def checkShow(showDirectory):
     check_users = []
     if show_settings['homeUsers']:
         check_users = show_settings['homeUsers'].strip(" ,").lower().split(",")
-        for i in range(0,len(check_users)):                                               #Remove extra spaces and commas
+        for i in range(0, len(check_users)):  # Remove extra spaces and commas
             check_users[i] = check_users[i].strip(", ")
     for SeasonDirectoryNode in show.getElementsByTagName("Directory"):  # Each directory is a season
         if not SeasonDirectoryNode.getAttribute('type') == "season":  # Only process Seasons (skips Specials)
@@ -692,13 +699,14 @@ def checkShow(showDirectory):
                     show_settings['onDeck'] = False
                     watchedDays = checkUsersWatched(check_users, m['media_id'])
                     if watchedDays == -1:
-                       m['view'] = 0
-                       compareDay = 0
+                        m['view'] = 0
+                        compareDay = 0
                     else:
-                       if watchedDays > m['DaysSinceVideoAdded']:
-                           compareDay = m['DaysSinceVideoAdded']
-                       else:
-                           compareDay = watchedDays
+                        m['view'] = 1
+                        if watchedDays > m['DaysSinceVideoAdded']:
+                            compareDay = m['DaysSinceVideoAdded']
+                        else:
+                            compareDay = watchedDays
                 elif m['DaysSinceVideoLastViewed'] > m['DaysSinceVideoAdded']:
                     compareDay = m['DaysSinceVideoAdded']
                 else:
@@ -744,6 +752,7 @@ def checkShow(showDirectory):
         count += 1
     return changes
 
+
 ## Main Script ############################################
 
 # parse arguments
@@ -753,12 +762,14 @@ parser.add_argument("--dump", "-dump", help="Dump the settings to a configuratio
                     const="Cleaner.conf", default=None)
 parser.add_argument("--config", "-config", "--load", "-load",
                     help="Load settings from a configuration file and run with settings")
+parser.add_argument("--debug", "-debug", action="store_true", help="Run script in debug mode to log more error information")
 parser.add_argument("--update_config", "-update_config", action="store_true",
                     help="Update the config file with new settings from the script and exit")
 
 args = parser.parse_args()
 
 test = args.test
+debug_mode = args.debug
 
 if args.config:
     Config = args.config
@@ -766,20 +777,10 @@ if args.config:
 if Config == "":
     if os.path.isfile(os.path.join(os.path.expanduser("~"), ".plexcleaner")):
         Config = os.path.join(os.path.expanduser("~"), ".plexcleaner")
-    # elif os.path.isfile(".plexcleaner"):
-    #     Config = ".plexcleaner"
-    # elif os.path.isfile("Cleaner.conf"):
-    #     Config = "Cleaner.conf"
     elif os.path.isfile(os.path.join(sys.path[0], "Cleaner.conf")):
         Config = os.path.join(sys.path[0], "Cleaner.conf")
     elif os.path.isfile(os.path.join(sys.path[0], "Settings.cfg")):
         Config = os.path.join(sys.path[0], "Settings.cfg")
-
-if args.dump:
-    # Output settings to a json config file and exit
-    print("Saving settings to " + args.dump)
-    dumpSettings(args.dump)
-    exit()
 
 Settings = OrderedDict()
 
@@ -796,6 +797,13 @@ if Config and os.path.isfile(Config):
         dumpSettings(Config)
 else:
     Settings = LoadSettings(Settings)
+
+if args.dump:
+    # Output settings to a json config file and exit
+    print("Saving settings to " + args.dump)
+    dumpSettings(args.dump)
+    print("Settings saved. Exiting...")
+    exit()
 
 if test:
     print(json.dumps(Settings, indent=2, sort_keys=False))  # if testing print out the loaded settings in the console
