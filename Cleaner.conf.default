@@ -10,6 +10,7 @@
   "Password": "",
   "RemoteMount": "",
   "LocalMount": "",
+  "PressEnterToExit": false,
   "plex_delete": false,
   "similar_files": true,
   "cleanup_movie_folders": false,

@@ -40,6 +40,8 @@ RemoteMount = ""  # Path on the remote server to the media files
 LocalMount = ""  # Path on the local computer to the media files
 ##########################################################################
 
+PressEnterToExit = False  # PressEnterToExit will pause the program at the summary screen and await a press of the enter key before exiting
+
 ## DEFAULT SETTINGS PER SHOW #############################################
 # These are the default actions that are applied to each show.
 #
@@ -279,6 +281,7 @@ def LoadSettings(opts):
     s['DeviceName'] = opts.get('DeviceName', DeviceName)
     s['RemoteMount'] = opts.get('RemoteMount', RemoteMount)
     s['LocalMount'] = opts.get('LocalMount', LocalMount)
+    s['PressEnterToExit'] = opts.get('PressEnterToExit', PressEnterToExit)
     s['plex_delete'] = opts.get('plex_delete', plex_delete)
     s['similar_files'] = opts.get('similar_files', similar_files)
     s['cleanup_movie_folders'] = opts.get('cleanup_movie_folders', cleanup_movie_folders)
@@ -828,6 +831,9 @@ if not Settings['LogFile'] == "":
     logging.basicConfig(filename=Settings['LogFile'], filemode='w', level=logging.DEBUG)
     logging.captureWarnings(True)
 
+if not Settings['PressEnterToExit'] == "":
+    PressEnterToExit = Settings['PressEnterToExit']	
+
 if Token == "":
     if not Settings['Username'] == "":
         Settings['Token'] = getToken(Settings['Username'], Settings['Password'])
@@ -942,3 +948,8 @@ log("  Rescanned Sections    " + ', '.join(str(x) for x in RescannedSections))
 log("")
 log("----------------------------------------------------------------------------")
 log("----------------------------------------------------------------------------")
+if PressEnterToExit:
+    try:
+        input("Press Enter to Exit...")
+    except Exception:
+        pass
